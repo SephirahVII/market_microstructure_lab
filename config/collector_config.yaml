@@ -1,0 +1,77 @@
+# config/collector_config.yaml
+
+system:
+  raw_data_subdir: "raw"
+  proxy_url: ""
+  # proxy_url: "http://127.0.0.1:7890"
+
+trades:
+  enabled: true
+  exchanges:
+    # === 现货组 (Spot) ===
+    - exchange: "binance"
+      market_type: "spot"
+      symbols: ["BTC/USDT"]
+
+    - exchange: "okx"
+      market_type: "spot"
+      symbols: ["BTC/USDT"]
+
+    - exchange: "bitstamp"
+      market_type: "spot"
+      symbols: ["BTC/USD"]
+
+    - exchange: "coinbase"
+      market_type: "spot"
+      symbols: ["BTC/USD"]
+
+    - exchange: "kraken"
+      market_type: "spot"
+      symbols: ["BTC/USD"]
+
+    - exchange: "bitfinex"
+      market_type: "spot"
+      symbols: ["BTC/USD"]
+
+    # === 期货组 (Futures/Swap) ===
+    # Binance 的永续合约在 ccxt 中通常用 'swap'，交割用 'future'
+    # === 获取 U本位永续 (USDT-M Swap) ===
+    - exchange: "binance"
+      market_type: "swap" 
+      symbols: ["BTC/USDT:USDT"]
+
+    - exchange: "binance"
+      market_type: "swap" 
+      symbols: ["ETH/USDT:USDT"]
+
+orderbooks:
+  enabled: true
+  depth_levels: 10
+  exchanges:
+    - exchange: "binance"
+      market_type: "spot"
+      symbols: ["BTC/USDT"]
+
+    - exchange: "okx"
+      market_type: "spot"
+      symbols: ["BTC/USDT"]
+
+    - exchange: "bitstamp"
+      market_type: "spot"
+      symbols: ["BTC/USD"]
+
+    - exchange: "coinbase"
+      market_type: "spot"
+      symbols: ["BTC/USD"]
+
+    - exchange: "kraken"
+      market_type: "spot"
+      symbols: ["BTC/USD"]
+
+    - exchange: "binance"
+      market_type: "swap"      
+      symbols: ["BTC/USDT:USDT"]
+
+    - exchange: "binance"
+      market_type: "swap" 
+      symbols: ["ETH/USDT:USDT"]
