@@ -4,11 +4,9 @@ import os
 import asyncio
 
 # === 1. 环境路径设置 ===
-# 获取当前脚本所在目录 (scripts/) 的上一级目录 (项目根目录)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 
-# 将项目根目录加入 Python 搜索路径，以便能 import src
 sys.path.append(project_root)
 
 from src.utils import load_config
