@@ -24,14 +24,14 @@
 ## 📂 目录结构
 
 ```text
-market_microstructure_lab/
+Crypto Data Collection/
 │
 ├── config/
-│   ├── collector_config.yaml     # 采集任务配置 (交易所、币种、代理)
+│   ├── collector_config.yaml     # 采集任务配置 (设置交易所、币种)
 │   └── analysis_config.yaml      # 分析任务配置 (时间窗口、指标算法)
 │
 ├── data/
-│   ├── raw/                      # 原始数据 (自动生成，只读)
+│   ├── raw/                      # 原始数据 (启动数据采集后自动生成)
 │   │   ├── trades/
 │   │   │   ├── spot/             # 现货成交
 │   │   │   └── swap/             # 合约成交
@@ -39,12 +39,12 @@ market_microstructure_lab/
 │   └── processed/                # 清洗与特征工程后的汇总数据 (CSV)
 │
 ├── scripts/
-│   ├── run_collector.py          # [入口] 启动数据采集
-│   └── run_processor.py          # [入口] 启动数据处理与指标计算
+│   ├── run_collector.py          # 启动数据采集系统
+│   └── run_processor.py          # 启动数据处理与指标计算
 │
 ├── src/                          # 核心源码
-│   ├── collectors/               # 采集模块 (Websocket 逻辑)
-│   ├── processors/               # 处理模块 (Pandas 特征计算)
+│   ├── collectors/               # 采集模块 (Websocket方式获取交易所实时数据)
+│   ├── processors/               # 处理模块 (对量价特征或订单簿相关特征进行计算)
 │   └── utils.py                  # 通用工具
 │
 └── requirements.txt              # 依赖库
