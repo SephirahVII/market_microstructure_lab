@@ -2,7 +2,7 @@
 
 尝试构建一个基于 Python 的高频加密货币市场微观结构数据采集与分析项目，目前已完成数据收集部分。
 
-该项目旨在提供一套**异步、高并发、低延迟**的解决方案，用于从多个交易所（Binance, Bitfinex, Kraken 等）同时采集**现货（Spot）**与**永续合约（Futures/Swap）**的逐笔成交（Trades）和全量订单簿（Orderbook）数据。
+该项目旨在提供一套**异步、高并发、低延迟**的解决方案，用于从多个交易所（Binance, Bitfinex, Kraken 等）同时采集**现货（Spot）**与**永续合约（Futures/Swap）**的逐笔成交（Trades）和全量订单簿（Orderbook）数据，并以 **Parquet** 作为存储格式。
 
 此外，后续项目还将加入：原始数据清洗、聚合，关键的微观结构指标计算（如深度失衡、多档价差、VWAP 等），用于量化研究与策略建模。
 
@@ -13,6 +13,9 @@
 * **多交易所支持**：通过 `ccxt.pro` 支持 Binance, OKX, Bitfinex, Coinbase, Kraken 等主流交易所。
 * **多合约币种覆盖**：支持同时采集 **现货 (Spot)** 和 **U本位永续合约 (Swap)** 数据。
 * **存储路径清晰**：原始数据按 `交易所/市场类型/币种/日期` 分层存储，结构清晰。
+* **Parquet 存储**：更适合后续批量计算与列式读取。
+* **实时 Dashboard**：内置 WebSocket + 图表展示实时成交与订单簿。
+* **日志记录**：运行日志写入 `logs/`，便于异常排查。
 * **统一时区**：所有数据统一使用 **UTC** 时间戳。
 * **微观指标计算**：
     * **Trade**: OHLCV, VWAP, 成交笔数, 主动买入/卖出量。
@@ -31,7 +34,7 @@ Crypto Data Collection/
 │   └── analysis_config.yaml      # 分析任务配置 (时间窗口、指标算法)
 │
 ├── data/
-│   ├── raw/                      # 原始数据 (启动数据采集后自动生成)
+│   ├── raw_parquet/              # 原始数据 (Parquet)
 │   │   ├── trades/
 │   │   │   ├── spot/             # 现货成交
 │   │   │   └── swap/             # 合约成交
@@ -40,6 +43,7 @@ Crypto Data Collection/
 │
 ├── scripts/
 │   ├── run_collector.py          # 启动数据采集系统
+│   └── run_dashboard.py          # 启动采集 + 前端展示
 │   └── run_processor.py          # 启动数据处理与指标计算
 │
 ├── src/                          # 核心源码
@@ -48,3 +52,13 @@ Crypto Data Collection/
 │   └── utils.py                  # 通用工具
 │
 └── requirements.txt              # 依赖库
+
+---
+
+## 🚀 快速运行 Dashboard
+
+```bash
+python scripts/run_dashboard.py
+```
+
+默认在 `http://localhost:8000` 提供实时图表。

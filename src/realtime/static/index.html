@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Market Microstructure Realtime Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Market Microstructure Realtime Dashboard</h1>
+      <p>实时订单簿与逐笔交易展示</p>
+    </header>
+    <main>
+      <section class="panel">
+        <h2>逐笔交易价格</h2>
+        <canvas id="tradeChart" height="120"></canvas>
+      </section>
+      <section class="panel">
+        <h2>订单簿深度</h2>
+        <canvas id="orderbookChart" height="120"></canvas>
+      </section>
+      <section class="panel info">
+        <h2>最新推送</h2>
+        <div id="latestTrade">等待交易数据...</div>
+        <div id="latestOrderbook">等待订单簿数据...</div>
+      </section>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

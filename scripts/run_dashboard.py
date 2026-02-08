@@ -1,68 +1,71 @@
-# scripts/run_collector.py
-import sys
-import os
 import asyncio
+import os
+import sys
 
-# === 1. 环境路径设置 ===
+from uvicorn import Config, Server
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
-
 sys.path.append(project_root)
 
-from src.utils import load_config, setup_logging
-from src.collectors.trade import TradeCollector
 from src.collectors.orderbook import OrderbookCollector
+from src.collectors.trade import TradeCollector
+from src.realtime.app import create_app
+from src.realtime.hub import BroadcastHub
+from src.utils import load_config, setup_logging
 
-async def main():
-    # === 2. 加载配置 ===
+
+async def main() -> None:
     config_path = os.path.join(project_root, 'config', 'collector_config.yaml')
     config = load_config(config_path)
-    if not config: return
+    if not config:
+        return
 
-    # === 3. 确定数据输出路径 ===
-    raw_subdir = config['system'].get('raw_data_subdir', 'raw')
+    raw_subdir = config['system'].get('raw_data_subdir', 'raw_parquet')
     data_root = os.path.join(project_root, 'data', raw_subdir)
     proxy_url = config['system'].get('proxy_url')
     log_dir = os.path.join(project_root, config['system'].get('log_dir', 'logs'))
-    logger = setup_logging(log_dir)
+    logger = setup_logging(log_dir, log_name="dashboard.log")
 
-    logger.info("🚀 启动数据采集系统")
+    hub = BroadcastHub()
+    app = create_app(hub)
+
+    logger.info("🚀 启动采集 + Dashboard")
     logger.info("📂 数据存放路径: %s", data_root)
     logger.info("🌐 代理设置: %s", proxy_url if proxy_url else 'None')
-    logger.info("-" * 50)
 
-    tasks = []
-
-    # === 4. 初始化采集任务 ===
-    # Trade data
+    collectors = []
     if config['trades'].get('enabled'):
-        t_collector = TradeCollector(data_root, proxy_url, logger=logger)
-        tasks.append(t_collector.run(config['trades']['exchanges']))
+        t_collector = TradeCollector(
+            data_root, proxy_url, logger=logger, event_handler=hub.broadcast
+        )
+        collectors.append(t_collector.run(config['trades']['exchanges']))
 
-    # Orderbook data
     if config['orderbooks'].get('enabled'):
         ob_collector = OrderbookCollector(
-            data_root, 
+            data_root,
             depth_levels=config['orderbooks'].get('depth_levels', 20),
             proxy_url=proxy_url,
             logger=logger,
+            event_handler=hub.broadcast,
         )
-        tasks.append(ob_collector.run(config['orderbooks']['exchanges']))
+        collectors.append(ob_collector.run(config['orderbooks']['exchanges']))
 
-    if not tasks:
+    if not collectors:
         logger.warning("⚠️ 未启用任何采集任务，请检查 config/collector_config.yaml")
         return
 
-    # === 5. 并行执行 ===
+    server = Server(
+        Config(app=app, host="0.0.0.0", port=8000, log_level="info", lifespan="on")
+    )
+
     try:
-        await asyncio.gather(*tasks)
+        await asyncio.gather(server.serve(), *collectors)
     except KeyboardInterrupt:
         logger.info("🛑 用户停止程序")
     except Exception as e:
         logger.exception("💥 系统级错误: %s", e)
 
+
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        pass
+    asyncio.run(main())
