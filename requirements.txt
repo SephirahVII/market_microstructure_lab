@@ -1,0 +1,6 @@
+ccxtpro
+fastapi
+pandas
+pyarrow
+pyyaml
+uvicorn
