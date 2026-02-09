@@ -12,6 +12,17 @@
       <p>实时订单簿与逐笔交易展示</p>
     </header>
     <main>
+      <section class="panel controls">
+        <h2>实时视图选择</h2>
+        <div class="control-row">
+          <label for="exchangeSelect">交易所</label>
+          <select id="exchangeSelect"></select>
+        </div>
+        <div class="control-row">
+          <label for="symbolSelect">币种</label>
+          <select id="symbolSelect"></select>
+        </div>
+      </section>
       <section class="panel">
         <h2>逐笔交易价格</h2>
         <canvas id="tradeChart" height="120"></canvas>

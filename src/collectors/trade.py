@@ -63,7 +63,7 @@ class TradeCollector:
                 output_dir, payload, "trades", columns=self.parquet_columns
             )
             self._last_flush[output_dir] = time.time()
-            self.logger.info("✅ [Trade] 写入 Parquet: %s", file_path)
+            self.logger.debug("✅ [Trade] 写入 Parquet: %s", file_path)
         except Exception as exc:
             self.logger.exception("❌ [Trade] 写入 Parquet 失败: %s", exc)
 

@@ -39,7 +39,11 @@ def write_parquet_batch(
     return file_path
 
 
-def setup_logging(log_dir: str, log_name: str = "collector.log") -> logging.Logger:
+def setup_logging(
+    log_dir: str,
+    log_name: str = "collector.log",
+    console_level: int = logging.WARNING,
+) -> logging.Logger:
     ensure_dir(log_dir)
     logger = logging.getLogger("market_microstructure")
     if logger.handlers:
@@ -57,6 +61,7 @@ def setup_logging(log_dir: str, log_name: str = "collector.log") -> logging.Logg
     logger.addHandler(file_handler)
 
     stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(console_level)
     stream_handler.setFormatter(formatter)
     logger.addHandler(stream_handler)
 

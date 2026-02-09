@@ -58,7 +58,15 @@ Crypto Data Collection/
 ## 🚀 快速运行 Dashboard
 
 ```bash
-python scripts/run_dashboard.py
+python scripts/run_collector.py
+```
+
+如需启用实时图表，可在 `config/collector_config.yaml` 中设置：
+
+```yaml
+system:
+  dashboard_enabled: true
+  dashboard_port: 8000
 ```
 
 默认在 `http://localhost:8000` 提供实时图表。

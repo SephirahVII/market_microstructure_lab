@@ -12,6 +12,24 @@ header {
   color: #f9fafb;
 }
 
+select {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.controls {
+  display: grid;
+  gap: 12px;
+}
+
+.control-row {
+  display: grid;
+  gap: 6px;
+}
+
 main {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));

@@ -25,7 +25,7 @@ async def main() -> None:
     data_root = os.path.join(project_root, 'data', raw_subdir)
     proxy_url = config['system'].get('proxy_url')
     log_dir = os.path.join(project_root, config['system'].get('log_dir', 'logs'))
-    logger = setup_logging(log_dir, log_name="dashboard.log")
+    logger = setup_logging(log_dir, log_name="dashboard.log", console_level=30)
 
     hub = BroadcastHub()
     app = create_app(hub)

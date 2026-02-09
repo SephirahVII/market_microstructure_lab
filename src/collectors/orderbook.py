@@ -69,7 +69,7 @@ class OrderbookCollector:
                 output_dir, payload, "orderbook", columns=self.parquet_columns
             )
             self._last_flush[output_dir] = time.time()
-            self.logger.info("✅ [Orderbook] 写入 Parquet: %s", file_path)
+            self.logger.debug("✅ [Orderbook] 写入 Parquet: %s", file_path)
         except Exception as exc:
             self.logger.exception("❌ [Orderbook] 写入 Parquet 失败: %s", exc)
 
