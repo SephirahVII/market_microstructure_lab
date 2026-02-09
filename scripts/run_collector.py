@@ -16,6 +16,19 @@ from src.realtime.app import create_app
 from src.realtime.hub import BroadcastHub
 from uvicorn import Config, Server
 
+def build_dashboard_config(config: dict) -> dict:
+    exchanges = {}
+    for section in ("trades", "orderbooks"):
+        if not config.get(section, {}).get("enabled"):
+            continue
+        for item in config.get(section, {}).get("exchanges", []):
+            exchange_id = item.get("exchange")
+            symbols = item.get("symbols", [])
+            if not exchange_id:
+                continue
+            exchanges.setdefault(exchange_id, set()).update(symbols)
+    return {"type": "config", "exchanges": {k: sorted(v) for k, v in exchanges.items()}}
+
 async def main():
     # === 2. 加载配置 ===
     config_path = os.path.join(project_root, 'config', 'collector_config.yaml')
@@ -27,7 +40,7 @@ async def main():
     data_root = os.path.join(project_root, 'data', raw_subdir)
     proxy_url = config['system'].get('proxy_url')
     log_dir = os.path.join(project_root, config['system'].get('log_dir', 'logs'))
-    logger = setup_logging(log_dir, console_level=30)
+    logger = setup_logging(log_dir, console_level=20)
     dashboard_enabled = config['system'].get('dashboard_enabled', False)
     dashboard_port = config['system'].get('dashboard_port', 8000)
 
@@ -65,6 +78,9 @@ async def main():
             event_handler=hub.broadcast if hub else None,
         )
         tasks.append(ob_collector.run(config['orderbooks']['exchanges']))
+
+    if hub:
+        hub.set_config(build_dashboard_config(config))
 
     if not tasks:
         logger.warning("⚠️ 未启用任何采集任务，请检查 config/collector_config.yaml")

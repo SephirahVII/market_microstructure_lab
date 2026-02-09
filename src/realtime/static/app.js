@@ -157,6 +157,24 @@ function updateOrderbookChart(payload, updateLatest = true) {
 
 ws.onmessage = (event) => {
   const message = JSON.parse(event.data);
+  if (message.type === "config") {
+    for (const [exchange, symbols] of Object.entries(message.exchanges)) {
+      updateExchangeOptions(exchange);
+      const symbolSet = state.exchanges.get(exchange);
+      symbols.forEach((symbol) => symbolSet.add(symbol));
+    }
+    if (!state.selectedExchange) {
+      const firstExchange = exchangeSelect.options[0]?.value;
+      const firstSymbol = state.exchanges.get(firstExchange)?.values().next()
+        .value;
+      if (firstExchange && firstSymbol) {
+        setSelection(firstExchange, firstSymbol);
+      }
+    } else {
+      updateSymbolOptions(state.selectedExchange);
+    }
+    return;
+  }
   if (message.type === "trade") {
     const { exchange_id, symbol, payload } = message;
     updateExchangeOptions(exchange_id);

@@ -42,7 +42,7 @@ def write_parquet_batch(
 def setup_logging(
     log_dir: str,
     log_name: str = "collector.log",
-    console_level: int = logging.WARNING,
+    console_level: int = logging.INFO,
 ) -> logging.Logger:
     ensure_dir(log_dir)
     logger = logging.getLogger("market_microstructure")
