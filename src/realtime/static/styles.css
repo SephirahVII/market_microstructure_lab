@@ -1,23 +1,35 @@
 body {
-  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
   margin: 0;
   padding: 0;
-  background: #f5f7fb;
-  color: #1f2937;
+  background: #0b1220;
+  color: #e5e7eb;
 }
 
 header {
-  padding: 24px 32px;
-  background: #111827;
-  color: #f9fafb;
+  padding: 20px 32px;
+  background: linear-gradient(90deg, #0b1220, #111827);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.15);
 }
 
-select {
+header h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+header p {
+  margin: 0;
+  color: #9ca3af;
+}
+
+select,
+input[type="range"] {
   width: 100%;
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: #111827;
+  color: #e5e7eb;
 }
 
 .controls {
@@ -28,25 +40,41 @@ select {
 .control-row {
   display: grid;
   gap: 6px;
+  font-size: 13px;
+  color: #9ca3af;
 }
 
 main {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: 320px 1fr;
   gap: 20px;
-  padding: 24px 32px;
+  padding: 20px 32px 32px;
 }
 
 .panel {
-  background: #ffffff;
+  background: #111827;
   padding: 16px;
   border-radius: 12px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.panel h2 {
+  margin-top: 0;
+  font-size: 15px;
+  color: #f8fafc;
 }
 
 .panel.info div {
   margin-top: 12px;
   padding: 12px;
-  background: #f3f4f6;
+  background: #0b1220;
   border-radius: 8px;
+  color: #94a3b8;
+}
+
+@media (max-width: 1024px) {
+  main {
+    grid-template-columns: 1fr;
+  }
 }

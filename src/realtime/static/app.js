@@ -1,9 +1,12 @@
 const ws = new WebSocket(`ws://${window.location.host}/ws`);
 
-const tradeCtx = document.getElementById("tradeChart").getContext("2d");
+const klineCtx = document.getElementById("klineChart").getContext("2d");
+const volumeCtx = document.getElementById("volumeChart").getContext("2d");
 const orderbookCtx = document.getElementById("orderbookChart").getContext("2d");
 const exchangeSelect = document.getElementById("exchangeSelect");
 const symbolSelect = document.getElementById("symbolSelect");
+const timeframeSelect = document.getElementById("timeframeSelect");
+const candleCountInput = document.getElementById("candleCount");
 
 const state = {
   exchanges: new Map(),
@@ -11,19 +14,21 @@ const state = {
   selectedSymbol: null,
   latestTrades: new Map(),
   latestOrderbooks: new Map(),
+  tradeBuffers: new Map(),
 };
 
-const tradeChart = new Chart(tradeCtx, {
-  type: "line",
+const klineChart = new Chart(klineCtx, {
+  type: "candlestick",
   data: {
-    labels: [],
     datasets: [
       {
-        label: "Trade Price",
+        label: "K线",
         data: [],
-        borderColor: "#2a9d8f",
-        backgroundColor: "rgba(42, 157, 143, 0.15)",
-        tension: 0.2,
+        color: {
+          up: "#16a34a",
+          down: "#ef4444",
+          unchanged: "#94a3b8",
+        },
       },
     ],
   },
@@ -31,25 +36,28 @@ const tradeChart = new Chart(tradeCtx, {
     animation: false,
     responsive: true,
     scales: {
-      x: { display: false },
+      x: {
+        display: true,
+        ticks: { color: "#9ca3af" },
+        grid: { color: "rgba(148, 163, 184, 0.1)" },
+      },
+      y: {
+        ticks: { color: "#9ca3af" },
+        grid: { color: "rgba(148, 163, 184, 0.1)" },
+      },
     },
   },
 });
 
-const orderbookChart = new Chart(orderbookCtx, {
+const volumeChart = new Chart(volumeCtx, {
   type: "bar",
   data: {
     labels: [],
     datasets: [
       {
-        label: "Bid Depth",
+        label: "成交量",
         data: [],
-        backgroundColor: "rgba(42, 157, 143, 0.5)",
-      },
-      {
-        label: "Ask Depth",
-        data: [],
-        backgroundColor: "rgba(231, 111, 81, 0.5)",
+        backgroundColor: "rgba(59, 130, 246, 0.6)",
       },
     ],
   },
@@ -57,17 +65,62 @@ const orderbookChart = new Chart(orderbookCtx, {
     animation: false,
     responsive: true,
     scales: {
-      x: { stacked: true },
-      y: { stacked: true },
+      x: {
+        ticks: { color: "#9ca3af" },
+        grid: { display: false },
+      },
+      y: {
+        ticks: { color: "#9ca3af" },
+        grid: { color: "rgba(148, 163, 184, 0.1)" },
+      },
     },
   },
 });
-orderbookChart.data.labels = [];
-orderbookChart.data.datasets[0].data = [];
-orderbookChart.data.datasets[1].data = [];
+volumeChart.data.labels = [];
+volumeChart.data.datasets[0].data = [];
+
+const orderbookChart = new Chart(orderbookCtx, {
+  type: "line",
+  data: {
+    datasets: [
+      {
+        label: "Bid Depth",
+        data: [],
+        borderColor: "#22c55e",
+        backgroundColor: "rgba(34, 197, 94, 0.15)",
+        pointRadius: 0,
+        fill: true,
+      },
+      {
+        label: "Ask Depth",
+        data: [],
+        borderColor: "#ef4444",
+        backgroundColor: "rgba(239, 68, 68, 0.15)",
+        pointRadius: 0,
+        fill: true,
+      },
+    ],
+  },
+  options: {
+    animation: false,
+    responsive: true,
+    scales: {
+      x: {
+        type: "linear",
+        ticks: { color: "#9ca3af" },
+        grid: { color: "rgba(148, 163, 184, 0.1)" },
+      },
+      y: {
+        ticks: { color: "#9ca3af" },
+        grid: { color: "rgba(148, 163, 184, 0.1)" },
+      },
+    },
+  },
+});
 
 const latestTrade = document.getElementById("latestTrade");
 const latestOrderbook = document.getElementById("latestOrderbook");
+const maxTradePoints = 100;
 
 function keyFor(exchange, symbol) {
   return `${exchange}::${symbol}`;
@@ -114,11 +167,11 @@ function renderSelected() {
     return;
   }
   const key = keyFor(state.selectedExchange, state.selectedSymbol);
-  tradeChart.data.labels = [];
-  tradeChart.data.datasets[0].data = [];
+  const trades = state.tradeBuffers.get(key) || [];
+  updateKline(trades);
   const tradePayload = state.latestTrades.get(key);
   if (tradePayload) {
-    updateTradeChart(tradePayload, true);
+    latestTrade.textContent = `${tradePayload.exchange_id} ${tradePayload.symbol} ${tradePayload.side} @ ${tradePayload.price} (${tradePayload.amount})`;
   }
   const orderbookPayload = state.latestOrderbooks.get(key);
   if (orderbookPayload) {
@@ -126,29 +179,82 @@ function renderSelected() {
   }
 }
 
-function updateTradeChart(payload, append = true) {
-  if (append) {
-    const timeLabel = new Date(payload.timestamp).toLocaleTimeString();
-    tradeChart.data.labels.push(timeLabel);
-    tradeChart.data.datasets[0].data.push(payload.price);
-    if (tradeChart.data.labels.length > 50) {
-      tradeChart.data.labels.shift();
-      tradeChart.data.datasets[0].data.shift();
-    }
+function updateKline(trades) {
+  const timeframe = Number(timeframeSelect.value || 60) * 1000;
+  const candleCount = Number(candleCountInput.value || 80);
+  if (!trades.length) {
+    klineChart.data.labels = [];
+    klineChart.data.datasets[0].data = [];
+    volumeChart.data.labels = [];
+    volumeChart.data.datasets[0].data = [];
+    klineChart.update();
+    volumeChart.update();
+    return;
   }
-  tradeChart.update();
-  latestTrade.textContent = `${payload.exchange_id} ${payload.symbol} ${payload.side} @ ${payload.price} (${payload.amount})`;
+  const sortedTrades = [...trades].sort((a, b) => a.timestamp - b.timestamp);
+  const buckets = new Map();
+  sortedTrades.forEach((trade) => {
+    const bucket = Math.floor(trade.timestamp / timeframe) * timeframe;
+    if (!buckets.has(bucket)) {
+      buckets.set(bucket, {
+        timestamp: bucket,
+        open: trade.price,
+        high: trade.price,
+        low: trade.price,
+        close: trade.price,
+        volume: trade.amount || 0,
+      });
+    } else {
+      const candle = buckets.get(bucket);
+      candle.high = Math.max(candle.high, trade.price);
+      candle.low = Math.min(candle.low, trade.price);
+      candle.close = trade.price;
+      candle.volume += trade.amount || 0;
+    }
+  });
+  const sorted = Array.from(buckets.values()).sort(
+    (a, b) => a.timestamp - b.timestamp
+  );
+  const sliced = sorted.slice(-candleCount);
+  klineChart.data.labels = sliced.map((c) =>
+    new Date(c.timestamp).toLocaleTimeString()
+  );
+  klineChart.data.datasets[0].data = sliced.map((c) => ({
+    x: new Date(c.timestamp).toLocaleTimeString(),
+    o: c.open,
+    h: c.high,
+    l: c.low,
+    c: c.close,
+  }));
+  klineChart.update();
+
+  volumeChart.data.labels = sliced.map((c) =>
+    new Date(c.timestamp).toLocaleTimeString()
+  );
+  volumeChart.data.datasets[0].data = sliced.map((c) => c.volume);
+  volumeChart.update();
 }
 
 function updateOrderbookChart(payload, updateLatest = true) {
-  const bids = payload.bids.slice(0, 10);
-  const asks = payload.asks.slice(0, 10);
-  const bidLabels = bids.map((item) => item[0]);
-  const askLabels = asks.map((item) => item[0]);
-  const labels = [...bidLabels, ...askLabels];
-  orderbookChart.data.labels = labels;
-  orderbookChart.data.datasets[0].data = bids.map((item) => item[1]);
-  orderbookChart.data.datasets[1].data = asks.map((item) => item[1]);
+  const bids = payload.bids.slice(0, 20);
+  const asks = payload.asks.slice(0, 20);
+  let bidCumulative = 0;
+  let askCumulative = 0;
+  const bidDepth = bids
+    .sort((a, b) => b[0] - a[0])
+    .map(([price, size]) => {
+      bidCumulative += size;
+      return { x: price, y: bidCumulative };
+    })
+    .reverse();
+  const askDepth = asks
+    .sort((a, b) => a[0] - b[0])
+    .map(([price, size]) => {
+      askCumulative += size;
+      return { x: price, y: askCumulative };
+    });
+  orderbookChart.data.datasets[0].data = bidDepth;
+  orderbookChart.data.datasets[1].data = askDepth;
   orderbookChart.update();
   if (updateLatest) {
     latestOrderbook.textContent = `${payload.exchange_id} ${payload.symbol || ""} Bids:${bids.length} Asks:${asks.length}`;
@@ -185,12 +291,21 @@ ws.onmessage = (event) => {
     }
     const key = keyFor(exchange_id, symbol);
     const enriched = { ...payload, exchange_id };
+    if (!state.tradeBuffers.has(key)) {
+      state.tradeBuffers.set(key, []);
+    }
+    const buffer = state.tradeBuffers.get(key);
+    buffer.push(enriched);
+    if (buffer.length > maxTradePoints) {
+      buffer.shift();
+    }
     state.latestTrades.set(key, enriched);
+    latestTrade.textContent = `${enriched.exchange_id} ${enriched.symbol} ${enriched.side} @ ${enriched.price} (${enriched.amount})`;
     if (
       exchange_id === state.selectedExchange &&
       symbol === state.selectedSymbol
     ) {
-      updateTradeChart(enriched);
+      updateKline(buffer);
     }
   }
   if (message.type === "orderbook") {
@@ -227,5 +342,13 @@ exchangeSelect.addEventListener("change", (event) => {
 
 symbolSelect.addEventListener("change", (event) => {
   state.selectedSymbol = event.target.value;
+  renderSelected();
+});
+
+timeframeSelect.addEventListener("change", () => {
+  renderSelected();
+});
+
+candleCountInput.addEventListener("input", () => {
   renderSelected();
 });
