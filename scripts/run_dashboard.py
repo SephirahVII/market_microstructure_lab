@@ -39,7 +39,7 @@ async def main() -> None:
         t_collector = TradeCollector(
             data_root, proxy_url, logger=logger, event_handler=hub.broadcast
         )
-        collectors.append(t_collector.run(config['trades']['exchanges']))
+        collectors.append(asyncio.create_task(t_collector.run(config['trades']['exchanges'])))
 
     if config['orderbooks'].get('enabled'):
         ob_collector = OrderbookCollector(
@@ -49,7 +49,7 @@ async def main() -> None:
             logger=logger,
             event_handler=hub.broadcast,
         )
-        collectors.append(ob_collector.run(config['orderbooks']['exchanges']))
+        collectors.append(asyncio.create_task(ob_collector.run(config['orderbooks']['exchanges'])))
 
     if not collectors:
         logger.warning("⚠️ 未启用任何采集任务，请检查 config/collector_config.yaml")
@@ -58,13 +58,19 @@ async def main() -> None:
     server = Server(
         Config(app=app, host="0.0.0.0", port=8000, log_level="info", lifespan="on")
     )
+    server_task = asyncio.create_task(server.serve())
 
     try:
-        await asyncio.gather(server.serve(), *collectors)
-    except KeyboardInterrupt:
+        await asyncio.gather(server_task, *collectors)
+    except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("🛑 用户停止程序")
     except Exception as e:
         logger.exception("💥 系统级错误: %s", e)
+    finally:
+        for task in collectors:
+            task.cancel()
+        server_task.cancel()
+        await asyncio.gather(server_task, *collectors, return_exceptions=True)
 
 
 if __name__ == '__main__':

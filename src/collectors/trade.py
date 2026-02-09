@@ -154,6 +154,9 @@ class TradeCollector:
         try:
             # 将 market_type 传给监控任务
             await asyncio.gather(*[self.monitor_symbol(exchange, s, market_type) for s in symbols])
+        except asyncio.CancelledError:
+            self.logger.info("🛑 [Trades] %s 收到取消信号，准备关闭连接", exchange_id)
+            raise
         except Exception as e:
             self.logger.exception("💥 [Trades] %s 初始化失败: %s", exchange_id, e)
         finally:

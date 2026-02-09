@@ -191,6 +191,9 @@ class OrderbookCollector:
         try:
             # 修正：将 market_type 传递给 monitor_symbol
             await asyncio.gather(*[self.monitor_symbol(exchange, s, market_type) for s in symbols])
+        except asyncio.CancelledError:
+            self.logger.info("🛑 [Orderbook] %s 收到取消信号，准备关闭连接", exchange_id)
+            raise
         except Exception as e:
             self.logger.exception("💥 [Orderbook] %s 初始化失败: %s", exchange_id, e)
         finally:
