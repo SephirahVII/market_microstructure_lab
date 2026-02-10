@@ -27,13 +27,13 @@
           <label for="timeframeSelect">K线周期</label>
           <select id="timeframeSelect">
             <option value="1">1 秒</option>
-            <option value="5">5 秒</option>
+            <option value="5" selected>5 秒</option>
             <option value="15">15 秒</option>
-            <option value="60" selected>1 分钟</option>
+            <option value="60">1 分钟</option>
           </select>
         </div>
         <div class="control-row">
-          <label for="candleCount">显示K线数量</label>
+          <label for="candleCount">显示K线数量 <span id="candleCountValue">80</span></label>
           <input id="candleCount" type="range" min="20" max="200" value="80" />
         </div>
       </section>
@@ -43,7 +43,7 @@
         <canvas id="volumeChart" height="80"></canvas>
       </section>
       <section class="panel">
-        <h2>订单簿深度（Depth Chart）</h2>
+        <h2>订单簿挂单量（按价格）</h2>
         <canvas id="orderbookChart" height="160"></canvas>
       </section>
       <section class="panel info">

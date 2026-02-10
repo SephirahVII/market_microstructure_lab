@@ -15,7 +15,7 @@ class BroadcastHub:
         await websocket.accept()
         async with self._lock:
             self._connections.add(websocket)
-        self._logger.info("✅ WebSocket 已连接，当前连接数: %s", len(self._connections))
+        self._logger.info("✅ WebSocket 前端已连接，当前前端连接数: %s", len(self._connections))
         if self._config:
             try:
                 await websocket.send_json(self._config)
@@ -25,7 +25,7 @@ class BroadcastHub:
     async def disconnect(self, websocket: Any) -> None:
         async with self._lock:
             self._connections.discard(websocket)
-        self._logger.info("ℹ️ WebSocket 断开连接，当前连接数: %s", len(self._connections))
+        self._logger.info("ℹ️ WebSocket 前端断开，当前前端连接数: %s", len(self._connections))
 
     def set_config(self, payload: dict) -> None:
         self._config = payload

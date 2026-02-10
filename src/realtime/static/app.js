@@ -7,6 +7,7 @@ const exchangeSelect = document.getElementById("exchangeSelect");
 const symbolSelect = document.getElementById("symbolSelect");
 const timeframeSelect = document.getElementById("timeframeSelect");
 const candleCountInput = document.getElementById("candleCount");
+const candleCountValue = document.getElementById("candleCountValue");
 
 const state = {
   exchanges: new Map(),
@@ -81,33 +82,32 @@ volumeChart.data.labels = [];
 volumeChart.data.datasets[0].data = [];
 
 const orderbookChart = new Chart(orderbookCtx, {
-  type: "line",
+  type: "bar",
   data: {
+    labels: [],
     datasets: [
       {
-        label: "Bid Depth",
+        label: "Bid Qty",
         data: [],
         borderColor: "#22c55e",
-        backgroundColor: "rgba(34, 197, 94, 0.15)",
-        pointRadius: 0,
-        fill: true,
+        backgroundColor: "rgba(34, 197, 94, 0.5)",
+        borderWidth: 1,
       },
       {
-        label: "Ask Depth",
+        label: "Ask Qty",
         data: [],
         borderColor: "#ef4444",
-        backgroundColor: "rgba(239, 68, 68, 0.15)",
-        pointRadius: 0,
-        fill: true,
+        backgroundColor: "rgba(239, 68, 68, 0.5)",
+        borderWidth: 1,
       },
     ],
   },
   options: {
     animation: false,
     responsive: true,
+    indexAxis: "y",
     scales: {
       x: {
-        type: "linear",
         ticks: { color: "#9ca3af" },
         grid: { color: "rgba(148, 163, 184, 0.1)" },
       },
@@ -197,20 +197,24 @@ function updateKline(trades) {
   sortedTrades.forEach((trade) => {
     const bucket = Math.floor(trade.timestamp / timeframe) * timeframe;
     if (!buckets.has(bucket)) {
+      const tradePrice = Number(trade.price);
+      const tradeAmount = Number(trade.amount || 0);
       buckets.set(bucket, {
         timestamp: bucket,
-        open: trade.price,
-        high: trade.price,
-        low: trade.price,
-        close: trade.price,
-        volume: trade.amount || 0,
+        open: tradePrice,
+        high: tradePrice,
+        low: tradePrice,
+        close: tradePrice,
+        volume: tradeAmount,
       });
     } else {
       const candle = buckets.get(bucket);
-      candle.high = Math.max(candle.high, trade.price);
-      candle.low = Math.min(candle.low, trade.price);
-      candle.close = trade.price;
-      candle.volume += trade.amount || 0;
+      const tradePrice = Number(trade.price);
+      const tradeAmount = Number(trade.amount || 0);
+      candle.high = Math.max(candle.high, tradePrice);
+      candle.low = Math.min(candle.low, tradePrice);
+      candle.close = tradePrice;
+      candle.volume += tradeAmount;
     }
   });
   const sorted = Array.from(buckets.values()).sort(
@@ -235,28 +239,24 @@ function updateKline(trades) {
 }
 
 function updateOrderbookChart(payload, updateLatest = true) {
-  const bids = payload.bids.slice(0, 20);
-  const asks = payload.asks.slice(0, 20);
-  let bidCumulative = 0;
-  let askCumulative = 0;
-  const bidDepth = bids
-    .sort((a, b) => b[0] - a[0])
-    .map(([price, size]) => {
-      bidCumulative += size;
-      return { x: price, y: bidCumulative };
-    })
-    .reverse();
-  const askDepth = asks
-    .sort((a, b) => a[0] - b[0])
-    .map(([price, size]) => {
-      askCumulative += size;
-      return { x: price, y: askCumulative };
-    });
-  orderbookChart.data.datasets[0].data = bidDepth;
-  orderbookChart.data.datasets[1].data = askDepth;
+  const bids = payload.bids.slice(0, 15).map(([p, q]) => [Number(p), Number(q)]);
+  const asks = payload.asks.slice(0, 15).map(([p, q]) => [Number(p), Number(q)]);
+
+  const labels = Array.from(
+    new Set([...bids.map(([p]) => p), ...asks.map(([p]) => p)])
+  ).sort((a, b) => b - a);
+
+  const bidMap = new Map(bids);
+  const askMap = new Map(asks);
+
+  orderbookChart.data.labels = labels.map((p) => p.toFixed(2));
+  orderbookChart.data.datasets[0].data = labels.map((p) => bidMap.get(p) || 0);
+  orderbookChart.data.datasets[1].data = labels.map((p) => askMap.get(p) || 0);
   orderbookChart.update();
   if (updateLatest) {
-    latestOrderbook.textContent = `${payload.exchange_id} ${payload.symbol || ""} Bids:${bids.length} Asks:${asks.length}`;
+    const topBid = bids[0] ? `${bids[0][0]} 买量 ${bids[0][1]}` : "-";
+    const topAsk = asks[0] ? `${asks[0][0]} 卖量 ${asks[0][1]}` : "-";
+    latestOrderbook.textContent = `${payload.exchange_id} ${payload.symbol || ""} | ${topBid} | ${topAsk}`;
   }
 }
 
@@ -289,7 +289,13 @@ ws.onmessage = (event) => {
       setSelection(exchange_id, symbol);
     }
     const key = keyFor(exchange_id, symbol);
-    const enriched = { ...payload, exchange_id };
+    const enriched = {
+      ...payload,
+      exchange_id,
+      price: Number(payload.price),
+      amount: Number(payload.amount),
+      timestamp: Number(payload.timestamp),
+    };
     if (!state.tradeBuffers.has(key)) {
       state.tradeBuffers.set(key, []);
     }
@@ -349,5 +355,8 @@ timeframeSelect.addEventListener("change", () => {
 });
 
 candleCountInput.addEventListener("input", () => {
+  candleCountValue.textContent = candleCountInput.value;
   renderSelected();
 });
+
+candleCountValue.textContent = candleCountInput.value;
