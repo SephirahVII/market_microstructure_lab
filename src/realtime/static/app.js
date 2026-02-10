@@ -37,7 +37,8 @@ const klineChart = new Chart(klineCtx, {
     responsive: true,
     scales: {
       x: {
-        display: true,
+        type: "timeseries",
+        time: { unit: "minute" },
         ticks: { color: "#9ca3af" },
         grid: { color: "rgba(148, 163, 184, 0.1)" },
       },
@@ -216,11 +217,9 @@ function updateKline(trades) {
     (a, b) => a.timestamp - b.timestamp
   );
   const sliced = sorted.slice(-candleCount);
-  klineChart.data.labels = sliced.map((c) =>
-    new Date(c.timestamp).toLocaleTimeString()
-  );
+  klineChart.data.labels = sliced.map((c) => new Date(c.timestamp));
   klineChart.data.datasets[0].data = sliced.map((c) => ({
-    x: new Date(c.timestamp).toLocaleTimeString(),
+    x: new Date(c.timestamp),
     o: c.open,
     h: c.high,
     l: c.low,

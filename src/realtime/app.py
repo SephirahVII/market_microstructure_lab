@@ -17,6 +17,11 @@ def create_app(hub: BroadcastHub) -> FastAPI:
     async def index() -> FileResponse:
         return FileResponse(static_dir / "index.html")
 
+
+    @app.get("/favicon.ico")
+    async def favicon() -> FileResponse:
+        return FileResponse(static_dir / "favicon.svg", media_type="image/svg+xml")
+
     @app.websocket("/ws")
     async def websocket_endpoint(websocket: WebSocket) -> None:
         await hub.connect(websocket)
