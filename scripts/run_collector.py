@@ -9,9 +9,25 @@ project_root = os.path.dirname(current_dir)
 
 sys.path.append(project_root)
 
-from src.utils import load_config
+from src.utils import load_config, setup_logging
 from src.collectors.trade import TradeCollector
 from src.collectors.orderbook import OrderbookCollector
+from src.realtime.app import create_app
+from src.realtime.hub import BroadcastHub
+from uvicorn import Config, Server
+
+def build_dashboard_config(config: dict) -> dict:
+    exchanges = {}
+    for section in ("trades", "orderbooks"):
+        if not config.get(section, {}).get("enabled"):
+            continue
+        for item in config.get(section, {}).get("exchanges", []):
+            exchange_id = item.get("exchange")
+            symbols = item.get("symbols", [])
+            if not exchange_id:
+                continue
+            exchanges.setdefault(exchange_id, set()).update(symbols)
+    return {"type": "config", "exchanges": {k: sorted(v) for k, v in exchanges.items()}}
 
 async def main():
     # === 2. 加载配置 ===
@@ -23,18 +39,36 @@ async def main():
     raw_subdir = config['system'].get('raw_data_subdir', 'raw')
     data_root = os.path.join(project_root, 'data', raw_subdir)
     proxy_url = config['system'].get('proxy_url')
+    log_dir = os.path.join(project_root, config['system'].get('log_dir', 'logs'))
+    logger = setup_logging(log_dir, console_level=20)
+    dashboard_enabled = config['system'].get('dashboard_enabled', False)
+    dashboard_port = config['system'].get('dashboard_port', 8000)
 
-    print(f"🚀 启动数据采集系统")
-    print(f"📂 数据存放路径: {data_root}")
-    print(f"🌐 代理设置: {proxy_url if proxy_url else 'None'}")
-    print("-" * 50)
+    logger.info("🚀 启动数据采集系统")
+    logger.info("📂 数据存放路径: %s", data_root)
+    logger.info("🌐 代理设置: %s", proxy_url if proxy_url else 'None')
+    logger.info("-" * 50)
 
     tasks = []
+    server_task = None
+    hub = None
+    if dashboard_enabled:
+        logger.info("✅ 实时前端已启用: http://0.0.0.0:%s", dashboard_port)
+        hub = BroadcastHub(logger=logger)
+        app = create_app(hub)
+        server = Server(
+            Config(app=app, host="0.0.0.0", port=dashboard_port, log_level="warning")
+        )
+        server_task = asyncio.create_task(server.serve())
+    else:
+        logger.info("ℹ️ 实时前端未启用 (dashboard_enabled=false)")
 
     # === 4. 初始化采集任务 ===
     # Trade data
     if config['trades'].get('enabled'):
-        t_collector = TradeCollector(data_root, proxy_url)
+        t_collector = TradeCollector(
+            data_root, proxy_url, logger=logger, event_handler=hub.broadcast if hub else None
+        )
         tasks.append(t_collector.run(config['trades']['exchanges']))
 
     # Orderbook data
@@ -42,21 +76,33 @@ async def main():
         ob_collector = OrderbookCollector(
             data_root, 
             depth_levels=config['orderbooks'].get('depth_levels', 20),
-            proxy_url=proxy_url
+            proxy_url=proxy_url,
+            logger=logger,
+            event_handler=hub.broadcast if hub else None,
         )
         tasks.append(ob_collector.run(config['orderbooks']['exchanges']))
 
+    if hub:
+        hub.set_config(build_dashboard_config(config))
+
     if not tasks:
-        print("⚠️ 未启用任何采集任务，请检查 config/collector_config.yaml")
+        logger.warning("⚠️ 未启用任何采集任务，请检查 config/collector_config.yaml")
         return
 
     # === 5. 并行执行 ===
+    if server_task:
+        tasks.append(server_task)
+
     try:
         await asyncio.gather(*tasks)
     except KeyboardInterrupt:
-        print("\n🛑 用户停止程序")
+        logger.info("🛑 用户停止程序")
     except Exception as e:
-        print(f"\n💥 系统级错误: {e}")
+        logger.exception("💥 系统级错误: %s", e)
+    finally:
+        if server_task:
+            server_task.cancel()
+            await asyncio.gather(server_task, return_exceptions=True)
 
 if __name__ == '__main__':
     try:

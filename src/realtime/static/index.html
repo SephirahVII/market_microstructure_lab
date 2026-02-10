@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Market Microstructure Realtime Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  </head>
+  <body>
+    <header>
+      <h1>Market Microstructure Realtime Dashboard</h1>
+      <p>实时订单簿与逐笔交易展示</p>
+    </header>
+    <main>
+      <section class="panel controls">
+        <h2>实时视图选择</h2>
+        <div class="control-row">
+          <label for="exchangeSelect">交易所</label>
+          <select id="exchangeSelect"></select>
+        </div>
+        <div class="control-row">
+          <label for="symbolSelect">币种</label>
+          <select id="symbolSelect"></select>
+        </div>
+        <div class="control-row">
+          <label for="timeframeSelect">K线周期</label>
+          <select id="timeframeSelect">
+            <option value="1">1 秒</option>
+            <option value="5" selected>5 秒</option>
+            <option value="15">15 秒</option>
+            <option value="60">1 分钟</option>
+          </select>
+        </div>
+        <div class="control-row">
+          <label for="candleCount">显示K线数量 <span id="candleCountValue">80</span></label>
+          <input id="candleCount" type="range" min="20" max="200" value="80" />
+        </div>
+      </section>
+      <section class="panel">
+        <h2>K线与成交量</h2>
+        <canvas id="klineChart" height="140"></canvas>
+        <canvas id="volumeChart" height="80"></canvas>
+      </section>
+      <section class="panel">
+        <h2>订单簿挂单量（按价格）</h2>
+        <canvas id="orderbookChart" height="160"></canvas>
+      </section>
+      <section class="panel info">
+        <h2>最新推送</h2>
+        <div id="latestTrade">等待交易数据...</div>
+        <div id="latestOrderbook">等待订单簿数据...</div>
+      </section>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

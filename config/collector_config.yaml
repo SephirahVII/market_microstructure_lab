@@ -1,7 +1,10 @@
 # config/collector_config.yaml
 
 system:
-  raw_data_subdir: "raw"
+  raw_data_subdir: "raw_parquet"
+  log_dir: "logs"
+  dashboard_enabled: true
+  dashboard_port: 8000
   proxy_url: ""
   # proxy_url: "http://127.0.0.1:7890"
 
