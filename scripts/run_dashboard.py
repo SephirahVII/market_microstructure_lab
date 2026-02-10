@@ -27,7 +27,8 @@ async def main() -> None:
     log_dir = os.path.join(project_root, config['system'].get('log_dir', 'logs'))
     logger = setup_logging(log_dir, log_name="dashboard.log", console_level=20)
 
-    hub = BroadcastHub()
+    logger.info("✅ 实时前端已启用: http://0.0.0.0:8000")
+    hub = BroadcastHub(logger=logger)
     app = create_app(hub)
 
     logger.info("🚀 启动采集 + Dashboard")

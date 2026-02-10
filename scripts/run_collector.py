@@ -53,12 +53,15 @@ async def main():
     server_task = None
     hub = None
     if dashboard_enabled:
-        hub = BroadcastHub()
+        logger.info("✅ 实时前端已启用: http://0.0.0.0:%s", dashboard_port)
+        hub = BroadcastHub(logger=logger)
         app = create_app(hub)
         server = Server(
             Config(app=app, host="0.0.0.0", port=dashboard_port, log_level="warning")
         )
         server_task = asyncio.create_task(server.serve())
+    else:
+        logger.info("ℹ️ 实时前端未启用 (dashboard_enabled=false)")
 
     # === 4. 初始化采集任务 ===
     # Trade data
