@@ -31,12 +31,16 @@ Crypto Data Collection/
 │   └── analysis_config.yaml      # 分析任务配置 (时间窗口、指标算法)
 │
 ├── data/
-│   ├── raw/                      # 原始数据 (启动数据采集后自动生成)
+│   ├── raw/                      # 原始数据 (启动数据采集后自动生成，采用 Parquet Hive-style 分区)
 │   │   ├── trades/
-│   │   │   ├── spot/             # 现货成交
-│   │   │   └── swap/             # 合约成交
-│   │   └── orderbooks/           # 订单簿快照
-│   └── processed/                # 清洗与特征工程后的汇总数据 (CSV)
+│   │   │   └── market_type=spot/
+│   │   │       └── exchange=binance/
+│   │   │           └── symbol=BTC_USDT/
+│   │   │               └── date=2024-05-01/
+│   │   │                   ├── 00.parquet    # 按小时切割的 Parquet 文件
+│   │   │                   └── ...
+│   │   └── orderbooks/           # 订单簿快照 (同样采用 market_type/exchange/symbol/date 分区结构)
+│   └── processed/                # 清洗与特征工程后的汇总数据
 │
 ├── scripts/
 │   ├── run_collector.py          # 启动数据采集系统
@@ -47,4 +51,4 @@ Crypto Data Collection/
 │   ├── processors/               # 处理模块 (对量价特征或订单簿相关特征进行计算)
 │   └── utils.py                  # 通用工具
 │
-└── requirements.txt              # 依赖库
+└── requirements.txt              # 依赖库 (需安装 pandas, pyarrow, fastparquet)

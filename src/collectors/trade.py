@@ -1,67 +1,115 @@
 # src/collectors/trade.py
 import ccxt.pro
 import asyncio
-import csv
 import os
+import pandas as pd
+from datetime import datetime
 from src.utils import ensure_dir, get_safe_symbol
 
 class TradeCollector:
-    def __init__(self, data_root, proxy_url=None):
+    def __init__(self, data_root, proxy_url=None, buffer_size=5000, flush_interval=10):
+        self.data_root = data_root
         self.output_dir = os.path.join(data_root, 'trades')
         self.proxy_url = proxy_url
-        self.csv_headers = [
-            'timestamp', 'datetime', 'symbol', 'side', 
-            'price', 'amount', 'cost', 'trade_id', 'type'
-        ]
-        ensure_dir(self.output_dir)
+        self.buffer_size = buffer_size
+        self.flush_interval = flush_interval
+        
+        self.buffer = []
+        self.lock = asyncio.Lock()
+        
+        # Start a background task to flush data periodically
+        self.flush_task = asyncio.create_task(self._periodic_flush())
 
-    def _get_file_path(self, exchange_id, market_type, symbol, trade_datetime):
-        if not trade_datetime: 
-            return None
+    async def _periodic_flush(self):
+        while True:
+            await asyncio.sleep(self.flush_interval)
+            await self.flush()
+
+    async def flush(self):
+        async with self.lock:
+            if not self.buffer:
+                return
+            data_to_flush = self.buffer[:]
+            self.buffer.clear()
             
-        date_str = trade_datetime.split('T')[0]
+        try:
+            # CPU bound task, offload to a background thread to prevent blocking the asyncio event loop
+            await asyncio.to_thread(self._write_parquet, data_to_flush)
+        except Exception as e:
+            print(f"❌ [Trade] Parquet 批量写入错误: {e}")
+
+    def _write_parquet(self, data):
+        if not data:
+            return
+            
+        df = pd.DataFrame(data)
+        
+        # Group by partition keys
+        partition_keys = ['market_type', 'exchange', 'symbol', 'date', 'hour']
+        for name, group in df.groupby(partition_keys):
+            market_type, exchange, symbol, date_str, hour_str = name
+            
+            # Construct Hive-style partition directory path
+            dir_path = os.path.join(
+                self.output_dir, 
+                f"market_type={market_type}",
+                f"exchange={exchange}",
+                f"symbol={symbol}",
+                f"date={date_str}"
+            )
+            ensure_dir(dir_path)
+            
+            file_path = os.path.join(dir_path, f"{hour_str}.parquet")
+            
+            # Remove partition columns from the DataFrame to save storage space
+            save_df = group.drop(columns=partition_keys)
+            
+            # Write to Parquet (append if exists)
+            if os.path.exists(file_path):
+                # fastparquet supports appending
+                save_df.to_parquet(file_path, engine='fastparquet', append=True)
+            else:
+                save_df.to_parquet(file_path, engine='fastparquet', compression='snappy')
+
+    async def save_trade(self, exchange_id, market_type, trade):
+        symbol = trade.get('symbol')
+        raw_datetime = trade.get('datetime')
+        if not raw_datetime or not symbol: 
+            return
+
+        # Extract Date and Hour from UTC datetime "2024-05-01T12:34:56.789Z"
+        try:
+            dt_obj = datetime.strptime(raw_datetime.split('.')[0].replace('Z', ''), "%Y-%m-%dT%H:%M:%S")
+        except:
+            dt_obj = datetime.utcnow()
+            
+        date_str = dt_obj.strftime('%Y-%m-%d')
+        hour_str = dt_obj.strftime('%H')
+        
         safe_symbol = get_safe_symbol(symbol)
         
-        # === 📂 路径修改：增加 market_type 层级 ===
-        directory = os.path.join(self.output_dir, market_type, exchange_id, safe_symbol)
-        ensure_dir(directory)
-        return os.path.join(directory, f"{date_str}.csv")
+        # side format mapping: buy=1, sell=-1
+        side_val = 1 if trade.get('side') == 'buy' else -1 if trade.get('side') == 'sell' else 0
 
-    def save_trade(self, exchange_id, market_type, trade):
-        symbol = trade['symbol']
-        raw_datetime = trade.get('datetime')
-        
-        # 传入 market_type 获取路径
-        file_path = self._get_file_path(exchange_id, market_type, symbol, raw_datetime)
-        if not file_path: return
+        row = {
+            'market_type': market_type,
+            'exchange': exchange_id,
+            'symbol': safe_symbol,
+            'date': date_str,
+            'hour': hour_str,
+            'exchange_ts': trade.get('timestamp', int(time.time() * 1000)),
+            'side': side_val,
+            'price': float(trade.get('price', 0)) if trade.get('price') is not None else 0.0,
+            'amount': float(trade.get('amount', 0)) if trade.get('amount') is not None else 0.0,
+            'trade_id': str(trade.get('id', ''))
+        }
 
-        # 格式化时间 (去掉 T/Z 以匹配 Orderbook 格式)
-        csv_datetime = raw_datetime
-        if raw_datetime:
-            csv_datetime = raw_datetime.replace('T', ' ').replace('Z', '')
+        async with self.lock:
+            self.buffer.append(row)
+            should_flush = len(self.buffer) >= self.buffer_size
 
-        file_exists = os.path.isfile(file_path)
-        
-        try:
-            with open(file_path, 'a', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                if not file_exists:
-                    writer.writerow(self.csv_headers)
-                
-                row = [
-                    trade.get('timestamp'), 
-                    csv_datetime,
-                    trade.get('symbol'),
-                    trade.get('side'), 
-                    trade.get('price'), 
-                    trade.get('amount'),
-                    trade.get('cost'), 
-                    trade.get('id'), 
-                    trade.get('type')
-                ]
-                writer.writerow(row)
-        except Exception as e:
-            print(f"❌ [Trade][{exchange_id}] 写入错误: {e}")
+        if should_flush:
+            await self.flush()
 
     async def monitor_symbol(self, exchange, symbol, market_type):
         exchange_id = exchange.id
@@ -73,8 +121,7 @@ class TradeCollector:
                 trades = await exchange.watch_trades(symbol)
                 for trade in trades:
                     if trade['id'] != last_id:
-                        # 传递 market_type
-                        self.save_trade(exchange_id, market_type, trade)
+                        await self.save_trade(exchange_id, market_type, trade)
                         last_id = trade['id']
             except Exception as e:
                 print(f"⚠️ [Trades][{exchange_id}] {symbol} 异常: {str(e)[:50]}")
@@ -83,7 +130,6 @@ class TradeCollector:
     async def run_exchange(self, config_item):
         exchange_id = config_item['exchange']
         symbols = config_item['symbols']
-        # 默认为 'spot'
         market_type = config_item.get('market_type', 'spot')
         
         options = {
@@ -98,7 +144,6 @@ class TradeCollector:
         exchange = exchange_class(options)
         
         try:
-            # 将 market_type 传给监控任务
             await asyncio.gather(*[self.monitor_symbol(exchange, s, market_type) for s in symbols])
         except Exception as e:
             print(f"💥 [Trades] {exchange_id} 初始化失败: {e}")
@@ -106,5 +151,9 @@ class TradeCollector:
             await exchange.close()
 
     async def run(self, exchange_configs):
-        tasks = [self.run_exchange(conf) for conf in exchange_configs]
-        await asyncio.gather(*tasks)
+        try:
+            tasks = [self.run_exchange(conf) for conf in exchange_configs]
+            await asyncio.gather(*tasks)
+        finally:
+            # Ensure buffer is flushed when shutting down
+            await self.flush()
