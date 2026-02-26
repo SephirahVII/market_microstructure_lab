@@ -11,7 +11,7 @@ trades:
     # === 现货组 (Spot) ===
     - exchange: "binance"
       market_type: "spot"
-      symbols: ["BTC/USDT"]
+      symbols: ["BTC/USDT", "HYPER/USDT"]
 
     - exchange: "okx"
       market_type: "spot"
@@ -38,7 +38,7 @@ trades:
     # === 获取 U本位永续 (USDT-M Swap) ===
     - exchange: "binance"
       market_type: "swap" 
-      symbols: ["BTC/USDT:USDT"]
+      symbols: ["BTC/USDT:USDT", "HYPER/USDT:USDT", "HYPE/USDT:USDT"]
 
     - exchange: "binance"
       market_type: "swap" 
@@ -50,7 +50,7 @@ orderbooks:
   exchanges:
     - exchange: "binance"
       market_type: "spot"
-      symbols: ["BTC/USDT"]
+      symbols: ["BTC/USDT", "HYPER/USDT"]
 
     - exchange: "okx"
       market_type: "spot"
@@ -70,7 +70,7 @@ orderbooks:
 
     - exchange: "binance"
       market_type: "swap"      
-      symbols: ["BTC/USDT:USDT"]
+      symbols: ["BTC/USDT:USDT", "HYPER/USDT:USDT", "HYPE/USDT:USDT"]
 
     - exchange: "binance"
       market_type: "swap" 

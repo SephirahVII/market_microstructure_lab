@@ -1,0 +1,11 @@
+# 忽略数据文件夹
+data/
+data_old/
+
+# 忽略临时测试生成的 parquet 文件
+*.parquet
+
+# 忽略 Python 缓存文件
+__pycache__/
+*.py[cod]
+*$py.class

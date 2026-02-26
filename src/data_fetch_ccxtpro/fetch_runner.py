@@ -14,7 +14,7 @@ project_root = os.path.dirname(src_dir)
 
 sys.path.append(project_root)
 
-from utils import ensure_dir, load_config
+from src.utils import ensure_dir, load_config
 from src.data_fetch_ccxtpro.trade import TradeCollector
 from src.data_fetch_ccxtpro.orderbook import OrderbookCollector
 
@@ -75,27 +75,49 @@ async def main():
     # === 5. 并行执行 ===
     try:
         await asyncio.gather(*tasks)
-    except KeyboardInterrupt:
+    except asyncio.CancelledError:
         now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        logger.info(f"[{now_utc} UTC] 🛑 User stopped the program")
+        logger.info(f"[{now_utc} UTC] 🛑 Received cancellation signal, waiting for tasks to finish...")
+        raise
     except Exception as e:
         now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         logger.exception(f"[{now_utc} UTC] 💥 System level error: {e}")
 
 if __name__ == '__main__':
+    # Initialize the event loop and gracefully handle KeyboardInterrupt
     try:
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        pass  # Handled inside main()
-    finally:
-        # Gracefully close remaining tasks to avoid aiohttp unclosed session complaints
-        for task in asyncio.all_tasks(loop):
-            task.cancel()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         
-        # Give asyncio 0.5s to propagate cancellations and let CCXT clean up
-        loop.run_until_complete(asyncio.sleep(0.5))
+    main_task = loop.create_task(main())
+    
+    try:
+        loop.run_until_complete(main_task)
+    except KeyboardInterrupt:
+        # Instead of calling task.cancel() on every internally running task, we cancel main_task
+        # async.gather will correctly propagate this and WAIT for children's finally blocks
+        logger = logging.getLogger('fetch_runner')
+        now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        logger.info(f"[{now_utc} UTC] 🛑 User stopped the program. Gracefully shutting down CCXT connections...")
+        
+        main_task.cancel()
         try:
+            # Wait safely for the cancellation to finish propagating
+            loop.run_until_complete(main_task)
+        except asyncio.CancelledError:
+            pass
+    finally:
+        try:
+            # Give the asyncio event loop a brief window to execute the CCXT websocket 
+            # and aiohttp connection teardown callbacks before aggressively closing the loop.
+            # This prevents the "Task was destroyed but it is pending!" errors.
+            pending = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task()]
+            if pending:
+                loop.run_until_complete(asyncio.sleep(0.5))
+            
+            # All tasks have finished their finally blocks, safe to close loop
             loop.close()
         except Exception:
             pass

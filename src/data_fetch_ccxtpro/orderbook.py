@@ -6,7 +6,7 @@ import time
 import pandas as pd
 import logging
 from datetime import datetime, timezone
-from utils import ensure_dir, get_safe_symbol
+from src.utils import ensure_dir, get_safe_symbol
 
 logger = logging.getLogger('OrderbookCollector')
 
@@ -28,9 +28,12 @@ class OrderbookCollector:
         self.flush_task = asyncio.create_task(self._periodic_flush())
 
     async def _periodic_flush(self):
-        while True:
-            await asyncio.sleep(self.flush_interval)
-            await self.flush()
+        try:
+            while True:
+                await asyncio.sleep(self.flush_interval)
+                await self.flush()
+        except asyncio.CancelledError:
+            pass
 
     async def flush(self):
         async with self.buffer_lock:
@@ -191,12 +194,25 @@ class OrderbookCollector:
             now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             logger.error(f"[{now_utc} UTC] 💥 [Orderbook] {exchange_id} Initialization failed: {e}", exc_info=True)
         finally:
-            await exchange.close()
+            try:
+                # Add timeout to prevent CCXT from hanging indefinitely during shutdown
+                await asyncio.wait_for(exchange.close(), timeout=10.0)
+            except Exception as e:
+                now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+                logger.warning(f"[{now_utc} UTC] ⚠️ [Orderbook] {exchange_id} closed with error: {e}")
 
     async def run(self, exchange_configs):
         try:
             tasks = [self.run_exchange(conf) for conf in exchange_configs]
             await asyncio.gather(*tasks)
         finally:
+            # Cancel the periodic flush task to prevent "Task was destroyed but it is pending" error
+            if not self.flush_task.done():
+                self.flush_task.cancel()
+                try:
+                    await self.flush_task
+                except asyncio.CancelledError:
+                    pass
+            
             # Ensure buffer is flushed when shutting down
             await self.flush()
