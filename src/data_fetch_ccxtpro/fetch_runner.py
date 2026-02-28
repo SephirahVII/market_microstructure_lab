@@ -14,7 +14,7 @@ project_root = os.path.dirname(src_dir)
 
 sys.path.append(project_root)
 
-from utils import ensure_dir, load_config
+from src.utils import ensure_dir, load_config
 from src.data_fetch_ccxtpro.trade import TradeCollector
 from src.data_fetch_ccxtpro.orderbook import OrderbookCollector
 
@@ -75,25 +75,33 @@ async def main():
     # === 5. 并行执行 ===
     try:
         await asyncio.gather(*tasks)
-    except KeyboardInterrupt:
+    except asyncio.CancelledError:
         now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-        logger.info(f"[{now_utc} UTC] 🛑 User stopped the program")
+        logger.info(f"[{now_utc} UTC] 🛑 Task gathering cancelled, initiating closure sequence")
     except Exception as e:
         now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         logger.exception(f"[{now_utc} UTC] 💥 System level error: {e}")
 
 if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    main_task = loop.create_task(main())
     try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
+        loop.run_until_complete(main_task)
     except KeyboardInterrupt:
-        pass  # Handled inside main()
+        now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        logger.info(f"[{now_utc} UTC] 🛑 KeyboardInterrupt! Initiating graceful shutdown...")
+        main_task.cancel()
+        # Give 5 seconds for tasks to process CancelledError and run finally blocks (exchange.close)
+        try:
+            loop.run_until_complete(asyncio.wait_for(main_task, timeout=5.0))
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass
     finally:
-        # Gracefully close remaining tasks to avoid aiohttp unclosed session complaints
-        for task in asyncio.all_tasks(loop):
+        # Cancel any stubborn/background tasks to avoid unclosed session complaints
+        tasks = [t for t in asyncio.all_tasks(loop) if t is not asyncio.current_task(loop)]
+        for task in tasks:
             task.cancel()
         
-        # Give asyncio 0.5s to propagate cancellations and let CCXT clean up
         loop.run_until_complete(asyncio.sleep(0.5))
         try:
             loop.close()

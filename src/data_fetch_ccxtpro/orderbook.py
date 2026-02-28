@@ -6,7 +6,7 @@ import time
 import pandas as pd
 import logging
 from datetime import datetime, timezone
-from utils import ensure_dir, get_safe_symbol
+from src.utils import ensure_dir, get_safe_symbol
 
 logger = logging.getLogger('OrderbookCollector')
 
@@ -102,7 +102,7 @@ class OrderbookCollector:
         if not exchange_ts: 
             exchange_ts = local_ts
             
-        dt_obj = datetime.utcfromtimestamp(local_ts / 1000)
+        dt_obj = datetime.fromtimestamp(local_ts / 1000, timezone.utc)
         date_str = dt_obj.strftime('%Y-%m-%d')
         # 改为按分钟切片 %H%M，如 1700, 1701...
         hour_str = dt_obj.strftime('%H%M')
@@ -157,11 +157,10 @@ class OrderbookCollector:
 
             except asyncio.TimeoutError:
                 now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
-                logger.warning(f"[{now_utc} UTC] ⚠️ [Orderbook][{exchange_id}] {symbol} Data timeout (30s no push), reconnecting...")
-                try:
-                    await exchange.close()
-                except:
-                    pass
+                logger.warning(f"[{now_utc} UTC] ⚠️ [Orderbook][{exchange_id}] {symbol} Data timeout (30s no push). CCXT will auto-handle...")
+                
+            except asyncio.CancelledError:
+                raise
                 
             except Exception as e:
                 now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
@@ -187,6 +186,9 @@ class OrderbookCollector:
         
         try:
             await asyncio.gather(*[self.monitor_symbol(exchange, s, market_type) for s in symbols])
+        except asyncio.CancelledError:
+            now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            logger.info(f"[{now_utc} UTC] 🛑 [Orderbook] {exchange_id} Shutdown signal received, closing connection...")
         except Exception as e:
             now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             logger.error(f"[{now_utc} UTC] 💥 [Orderbook] {exchange_id} Initialization failed: {e}", exc_info=True)

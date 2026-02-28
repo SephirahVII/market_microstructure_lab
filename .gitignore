@@ -1,0 +1,6 @@
+data/
+data_old/
+logs/
+__pycache__/
+*.py[cod]
+*$py.class

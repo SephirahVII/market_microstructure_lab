@@ -6,7 +6,7 @@ import time
 import pandas as pd
 import logging
 from datetime import datetime, timezone
-from utils import ensure_dir, get_safe_symbol
+from src.utils import ensure_dir, get_safe_symbol
 
 logger = logging.getLogger('TradeCollector')
 
@@ -152,6 +152,8 @@ class TradeCollector:
                     if trade['id'] != last_id:
                         await self.save_trade(exchange_id, market_type, trade)
                         last_id = trade['id']
+            except asyncio.CancelledError:
+                raise
             except Exception as e:
                 now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
                 logger.warning(f"[{now_utc} UTC] ⚠️ [Trades][{exchange_id}] {symbol} Exception: {str(e)[:100]}")
@@ -175,6 +177,9 @@ class TradeCollector:
         
         try:
             await asyncio.gather(*[self.monitor_symbol(exchange, s, market_type) for s in symbols])
+        except asyncio.CancelledError:
+            now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+            logger.info(f"[{now_utc} UTC] 🛑 [Trades] {exchange_id} Shutdown signal received, closing connection...")
         except Exception as e:
             now_utc = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
             logger.error(f"[{now_utc} UTC] 💥 [Trades] {exchange_id} Initialization failed: {e}", exc_info=True)
